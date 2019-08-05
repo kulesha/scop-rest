@@ -789,7 +789,7 @@ function fetchDomainsByUniProtFromDB(uniprot_id, res) {
 
 function fetchSearchFromDB(qTerm, res) {
     const sql = "SELECT * FROM rest_search WHERE id = '" + qTerm + "' OR name LIKE '%" + qTerm + "%' OR description LIKE '%" + qTerm + "%'";
-    const sql2 = "SELECT *, 'domain' as type FROM rest_search_id WHERE id = '" + qTerm + "' OR pdb_id = '" + qTerm + "' OR uniprot_id = '" + qTerm + "'";
+    const sql2 = "SELECT id, concat_ws(' ', pdb_id, name) as name, 'domain' as type FROM rest_search_id WHERE id = '" + qTerm + "' OR pdb_id = '" + qTerm + "' OR uniprot_id = '" + qTerm + "'";
     
     if (debug) {
         console.log("SQL (search text)# " + sql);
