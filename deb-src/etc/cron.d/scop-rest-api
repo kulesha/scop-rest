@@ -1,0 +1,1 @@
+* * * * * root run-one /opt/scop/bin/scop-rest-api >> /var/log/scop-rest-api.log 2>&1

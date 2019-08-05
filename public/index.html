@@ -1,0 +1,74 @@
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#000000">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link href="/static/scop-rest.css" rel="stylesheet">
+    <title>SCOP REST API</title>
+</head>
+<body>
+    <div class="root">
+
+        <div class="header">
+            <nav id="navbar" class="navbar navbar-expand-lg navbar-light bg-light">
+                <span class="navbar-brand">
+                    <a href="/">
+                        <img src="/static/scop_logo.png" alt="SCOP logo" class="d-inline-block align-top logo">
+                    </a>
+                </span>
+                <span class="title"> REST API </span>
+            </nav>
+        </div>
+        <div class="content">
+<h3> SCOP REST API Endpoints</h3>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th scope="col">Resource</th>
+      <th scope="col">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="/term/1000001">term/:scop_id</a></td>
+      <td>retrieve all information about the term</td>
+    </tr>
+    <tr>
+      <td><a href="/children/1000001">children/:scop_id</a></td>
+      <td>list all direct descendants of the term</td>
+    </tr>
+    <tr>
+      <td><a href="/parents/3000001">parents/:scop_id</a></td>
+      <td>list all direct ancestors of the term</td>
+    </tr>
+    <tr>
+      <td><a href="/domains/3000001">domains/:scop_id</a></td>
+      <td>list all domains classified at this node</td>
+    </tr>
+    <tr>
+      <td><a href="/domains_by_uniprot/P10037">domains_by_uniprot/:uniprot_id</a></td>
+      <td>list all domains associated with a given UniProt ID</td>
+    </tr>
+    <tr>
+      <td><a href="/lineage/4000345">ancestry/:scop_id</a></td>
+      <td>retrieve the ancestry graph of the term</td>
+    </tr>
+    <tr>
+      <td><a href="/represented_structures/8038869">represented_structures/:scop_domain_id</a></td>
+      <td>list the structures represented by the domain</td>
+    </tr>
+    <tr>
+      <td><a href="/stats">stats</a></td>
+      <td>latest release information</td>
+    </tr>
+     </tbody>
+</table>
+        </div>
+        <div id="footer">SCOP2 2019-05/supported by the UK Medical Research council (MRC)</div>
+     </div>
+    
+</body>
+</html>

@@ -1,0 +1,22 @@
+#!/bin/bash
+
+CODENAME=$(lsb_release -cs)
+
+echo "Checking metrichor group"
+grep metrichor /etc/group >/dev/null || addgroup metrichor || true
+echo "Checking metrichor user"
+grep metrichor /etc/passwd >/dev/null || useradd --system --home /opt/metrichor -g metrichor metrichor || true
+
+if [ "$CODENAME" == "trusty" ]; then
+    echo "Starting metrichor-worker service"
+    service metrichor-worker start || echo "failed to start"
+    # remove xenial init config
+    rm /lib/systemd/system/metrichor-worker.service || true   
+elif [ "$CODENAME" == "xenial" ]; then
+    echo "Enabling metrichor-worker service"
+    systemctl enable metrichor-worker.service || echo "failed to enable"
+    echo "Starting metrichor-worker service"
+    systemctl start metrichor-worker.service || echo "failed to start"
+    # remove trusty init config
+    rm /etc/init/metrichor-worker.conf || true
+fi

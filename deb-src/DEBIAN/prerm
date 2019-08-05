@@ -1,0 +1,9 @@
+#!/bin/bash
+
+CODENAME=$(lsb_release -cs)
+
+if [ "$CODENAME" == "trusty" ]; then
+    service metrichor-worker stop || echo "failed to stop"
+elif [ "$CODENAME" == "xenial" ]; then
+    systemctl stop metrichor-worker.service || echo "failed to stop"
+fi
