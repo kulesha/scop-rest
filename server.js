@@ -1,35 +1,39 @@
-var express = require('express');
-var app = express();
-
-// define routes here..
-var url = require('url');
-let WEB_PORT = 80;
-let debug = 1;
-
+const url = require('url');
 const fs = require('fs');
 let rawdata = fs.readFileSync('/opt/scop/config.json');
 let config = JSON.parse(rawdata);
 
-console.log(config);
+let debug = 1;
+if ('debug' in config) {
+    debug = config.debug;
+}
 
+let WEB_PORT = 80;
+if ('webport' in config) {
+    WEB_PORT = config.webport;
+}
 
+if (debug) {
+    console.log(config);
+}
+
+var express = require('express');
 var mysql = require('mysql');  
+var dbpool = mysql.createPool(config);
 /*
 var dbpool  = mysql.createPool({
     connectionLimit : 10,
     host: "localhost",
     user: "scop",
     password: "scop2",
-    database: "scop2"
+    database: "scop2",
 });
  */
-var dbpool = mysql.createPool(config);
-if ('webport' in config) {
-    WEB_PORT = config.webport;
-}
-if ('debug' in config) {
-    debug = config.debug;
-}
+
+
+var app = express();
+
+// define routes here..
 
 app.use(express.static(__dirname + 'public'));
 
@@ -38,7 +42,7 @@ var server = app.listen(WEB_PORT, function () {
     console.log("Debug info is " + (debug ? "ON" : "OFF"));
 });
 
-app.use('/static',express.static(__dirname + '/public/static'));
+app.use('/static', express.static(__dirname + '/public/static'));
 
 app.get('/', function(req, res){
     res.sendFile('index.html', { root: __dirname + "/public" } );
@@ -50,6 +54,9 @@ app.get('/stats', function(req, res){
 
 app.use('/term', function( req, res){
     var path = req.path.split(/[\/\?]/); 
+    if (debug > 1) {
+        console.log(path);
+    }
     if (path.length< 2 || !path[1]) {
         return printError(res, "Invalid path: " + req.path)
     } 
@@ -527,7 +534,9 @@ function fetchTermFromDB(termId, res) {
                     }
                 } else if (tdata.rank == 4) {
                     tdata.type = 'family';
-                    console.log("SQL ( pfam )# ", sql4);
+                    if (debug) {
+                        console.log("SQL ( pfam )# ", sql4);
+                    }
                     dbpool.query(sql4, function (err, result) {
                         if (err) {
                             return printError(res, err);
