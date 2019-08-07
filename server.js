@@ -4,7 +4,7 @@ let rawdata = fs.readFileSync('/opt/scop/config.json');
 let config = JSON.parse(rawdata);
 
 let debug = 1;
-if ('debug' in config) {
+if ('debug2' in config) {
     debug = config.debug;
 }
 
@@ -193,6 +193,10 @@ function fetchStatsFromDB(res) {
 
     const sql = "SELECT COUNT(*) AS folds, (select count(*) from fold where cf_status = 'active' and cf_attribute = 'iupr') as IUPR, ( select count(*) from hyperfamily where hf_status = 'active') AS hyperfamilies, (select count(*) from superfamily where sf_status = 'active') as superfamilies, (select count(*) from family where fa_status = 'active' and fa_name not like '%AUTOFAM%') as families, (select count(*) from inter_relationships) as `inter-relationships` from fold where cf_status = 'active' and cf_attribute = 'fold'";
     const fields = ['folds', 'IUPR', 'hyperfamilies', 'superfamilies', 'families', 'inter-relationships'];
+    if (debug) {
+        console.log("SQL ( stats )# ", sql);
+    }
+
     dbpool.query(sql, function(err, result) {
         if (err) {
             return printError(res, err);
@@ -674,7 +678,7 @@ function fetchAncestryFromDB(termId, res) {
                                 id : i.cf_id,
                                 name: i.cf_name
                             };
-                            edges.push([current_node_id, i.cf_id, "is"]);
+                            edges.push([current_node_id, i.cf_id, "partof"]);
                         }
                         if (i.sf_id) {
                             nodes[i.sf_id] = {

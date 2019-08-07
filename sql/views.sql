@@ -5,3 +5,15 @@ CREATE VIEW `rest_search` AS select `rest_folds`.`id` AS `id`,`rest_folds`.`name
 CREATE VIEW `rest_search_id` AS select `domain_segment`.`dom_id` AS `id`,`domain_segment`.`pdb_code` AS `pdb_id`,`rs`.`ext_db_id` AS `uniprot_id`,group_concat(concat_ws(':',`domain_segment`.`pdb_chain`,concat_ws('-',`domain_segment`.`pdb_begin`,`domain_segment`.`pdb_end`)) separator ', ') AS `name` from (`domain_segment` left join `representative_sequence` `rs` on((`domain_segment`.`repre_seq` = `rs`.`rep_seq_id`))) group by `id`,`pdb_id`,`uniprot_id`;
 
 create index domid_index on cluster_members(repre_dom_id) ;
+
+update fold set last_modified = date_created where last_modified < '2001-01-01';
+update superfamily set last_modified = date_created where last_modified < '2001-01-01';
+update family set last_modified = date_created where last_modified < '2001-01-01';
+
+alter table fold modify column last_modified date default NULL;
+alter table superfamily modify column last_modified date default NULL;
+alter table family modify column last_modified date default NULL;
+
+create fulltext index search_fold on fold(cf_name, cf_comment);
+create fulltext index search_superfamily on superfamily(sf_name, sf_comment);
+create fulltext index search_family on family(fa_name, fa_comment);
