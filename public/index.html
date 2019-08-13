@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
     <link href="static/scop-rest.css" rel="stylesheet">
     <title>SCOP REST API</title>
+    <base href="http://supfam.mrc-lmb.cam.ac.uk/api/" />
 </head>
 <body>
     <div class="root">
@@ -15,7 +16,7 @@
         <div class="header">
             <nav id="navbar" class="navbar navbar-expand-lg navbar-light bg-light">
                 <span class="navbar-brand">
-                    <a href="/">
+                    <a href="">
                         <img src="static/scop_logo.png" alt="SCOP logo" class="d-inline-block align-top logo">
                     </a>
                 </span>
@@ -53,7 +54,7 @@
       <td>list all domains associated with a given UniProt ID</td>
     </tr>
     <tr>
-      <td><a href="lineage/4000345">ancestry/:scop_id</a></td>
+      <td><a href="ancestry/4000345">ancestry/:scop_id</a></td>
       <td>retrieve the ancestry graph of the term</td>
     </tr>
     <tr>
@@ -67,7 +68,10 @@
      </tbody>
 </table>
         </div>
-        <div id="footer">SCOP2 2019-05/supported by the UK Medical Research council (MRC)</div>
+        <div id="footer">
+          <div>SCOP2 2019-05/supported by the UK Medical Research council (MRC)</div>
+          <div>Build 1.0.3</div>
+        </div>
      </div>
     
 </body>

@@ -34,6 +34,8 @@
     margin-top: 2%;
     color: #909090;
     font-size:0.8em;
+    display:flex;
+    justify-content: space-between;
 }
 
 .content {
