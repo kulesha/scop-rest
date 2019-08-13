@@ -1,6 +1,22 @@
 const url = require('url');
 const fs = require('fs');
-let rawdata = fs.readFileSync('/opt/scop/config.json');
+let config_file = "/opt/scop/config.json";
+
+function getArgs () {
+    const args = {};
+    process.argv.slice(2).forEach(function (val, index, array) {
+        const longArg = val.split('=');
+        args[longArg[0].slice(2)] = longArg[1];
+    });
+    return args;
+}
+const args = getArgs();
+
+if (args.config) {
+    config_file = args.config;
+}
+
+let rawdata = fs.readFileSync(config_file);
 let config = JSON.parse(rawdata);
 
 let debug = 1;
@@ -15,6 +31,7 @@ if ('webport' in config) {
 
 if (debug) {
     console.log(config);
+    console.log("Using CONFIGURATION from " + config_file);
 }
 
 var express = require('express');
