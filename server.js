@@ -772,7 +772,7 @@ function fetchRepresentedStructuresFromDB(termId, res) {
 }
 
 function fetchDomainsByUniProtFromDB(uniprot_id, res) {
-    const sql = "select pdb_code, pdb_chain, pdb_begin, pdb_end, dom_id, seq_begin, seq_end, domain_type from domain_segment ds left join representative_sequence rs on ds.repre_seq = rs.rep_seq_id left join domain_scop_cla using(dom_id) where ext_db_id = '" + uniprot_id + "' and se_mark = 'ready' and domain_type in ('SF', 'FA', 'HF', 'CF') order by serial"
+    const sql = "select pdb_code, pdb_chain, pdb_begin, pdb_end, dom_id, seq_begin, seq_end, domain_type from domain_segment ds left join representative_sequence rs on ds.repre_seq = rs.rep_seq_id left join domain_scop_cla using(dom_id) where ext_db_id = '" + uniprot_id + "' and se_mark = 'ready' and domain_type in ('SF', 'FA') order by serial"
     if (debug) {
         console.log("SQL (doms by Uni)# " + sql);
     }
