@@ -28,4 +28,4 @@ $ pkg . -t node12-linux-x64
 $ vi config.json
 $ sudo mkdir /opt/scop
 $ sudo cp config.json /opt/scop
-$ ./scop-rest
+$ sudo ./scop-rest
