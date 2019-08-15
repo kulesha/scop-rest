@@ -25,14 +25,7 @@
 - $ sudo npm install -g pkg
 - $ pkg . -t node12-linux-x64
 #### configure db connection
-<<<<<<< HEAD
-$ vi config.json
-$ sudo mkdir /opt/scop
-$ sudo cp config.json /opt/scop
-$ sudo ./scop-rest
-=======
 - $ vi config.json
 - $ sudo mkdir /opt/scop
 - $ sudo cp config.json /opt/scop
-- $ ./scop-rest
->>>>>>> f81139bd6430c23b3a50f9c15cdc573343861356
+- $ sudo ./scop-rest
