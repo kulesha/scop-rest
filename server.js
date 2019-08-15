@@ -20,7 +20,7 @@ let rawdata = fs.readFileSync(config_file);
 let config = JSON.parse(rawdata);
 
 let debug = 1;
-if ('debug2' in config) {
+if ('debug' in config) {
     debug = config.debug;
 }
 
