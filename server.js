@@ -590,7 +590,7 @@ function fetchDomainsFromDB(termId, res) {
         return printTerm(res, tdata);
     }
     
-    const sql = "SELECT count(*) as num , dsc.dom_id as id, dsc.dom_name as name, dsc.domain_type as type, dsc.domain_comment as description, ds.pdb_code as pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, rs.rep_name as rs_name, ext_db_id as uniprot_id, ncbi.scientific_name as taxid from domain_scop_cla dsc left join domain_segment ds using (dom_id) left join representative_sequence rs on ds.repre_seq = rs.rep_seq_id left join ncbi_taxonomy ncbi using (ncbi_taxa_id) left join cluster_members cm on dsc.dom_id = cm.repre_dom_id where node_id = " + termId + " and dom_mark = 'ready' group by id, name, type, description, pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, rs_name, uniprot_id, taxid order by num desc";
+    const sql = "SELECT num, id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, protein_name, uniprot_id, species_name, seq_begin, seq_end FROM rest_domains WHERE node_id = " + termId + " ORDER BY num DESC, id, serial ";
     if (debug) {
         console.log("SQL ( domains )# ", sql);
     }
@@ -601,7 +601,28 @@ function fetchDomainsFromDB(termId, res) {
         }         
     
         if (result.length) {
-            tdata.domains = result;
+            let domains = {};
+            result.map(i => {
+                if (i.id in domains) {
+                    domains[i.id]["pdb_regions"].push([i.pdb_chain, parseInt(i.pdb_begin), parseInt(i.pdb_end)])
+                    domains[i.id]["protein_regions"].push([parseInt(i.seq_begin), parseInt(i.seq_end)])
+                } else {
+                    domains[i.id] = {
+                        num: i.num,
+                        id: i.id,
+                        type: i.type,
+                        pdb_id: i.pdb_id,
+                        protein_name: i.protein_name,
+                        uniprot_id: i.uniprot_id,
+                        species: i.species_name,
+                        pdb_regions: [[i.pdb_chain, parseInt(i.pdb_begin), parseInt(i.pdb_end)]],
+                        protein_regions: [[parseInt(i.seq_begin), parseInt(i.seq_end)]]
+                    }
+                }
+            });
+            var ids = Object.keys(domains);
+            var values = ids.map(function(v) { return domains[v]; });
+            tdata.domains = values.sort(function(a,b) { if (a.num > b.num) { return -1;} return 1;});
         }
         return printTerm(res, tdata);
     });
