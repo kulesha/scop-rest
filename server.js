@@ -1,6 +1,9 @@
+const got = require('got');
+
 const url = require('url');
 const fs = require('fs');
 let config_file = "/opt/scop/config.json";
+
 
 function getArgs () {
     const args = {};
@@ -27,6 +30,38 @@ if ('debug' in config) {
 let WEB_PORT = 80;
 if ('webport' in config) {
     WEB_PORT = config.webport;
+}
+
+let GA_TRACKING_ID = 0;
+
+
+const trackEvent = (category, action, label, value) => {
+    const data = {
+      // API Version.
+      v: '1',
+      // Tracking ID / Property ID.
+      tid: GA_TRACKING_ID,
+      // Anonymous Client Identifier. Ideally, this should be a UUID that
+      // is associated with particular user, device, or browser instance.
+      cid: '555',
+      // Event hit type.
+      t: 'event',
+      // Event category.
+      ec: category,
+      // Event action.
+      ea: action,
+      // Event label.
+      el: label,
+      // Event value.
+      ev: value,
+    };
+    if (GA_TRACKING_ID) {
+        return got.post('http://www.google-analytics.com/collect', data);
+    }
+};
+
+if ('tracking-id' in config) {
+    GA_TRACKING_ID = config.gaTrackingID;
 }
 
 if (debug) {
@@ -62,10 +97,12 @@ var server = app.listen(WEB_PORT, function () {
 app.use('/static', express.static(__dirname + '/public/static'));
 
 app.get('/', function(req, res){
+    trackEvent('page', 'home');
     res.sendFile('index.html', { root: __dirname + "/public" } );
 });
 
 app.get('/stats', function(req, res){
+    trackEvent('page', 'stats');
     return fetchStatsFromDB(res);
 });
 
@@ -79,6 +116,7 @@ app.use('/term', function( req, res){
     } 
     var termId = parseInt(path[1]);
     if (termId) {
+        trackEvent('page', 'term', termId);
         return fetchTermFromDB(termId, res);
     } else {
         return printError(res, "Invalid id: " +  path[1]);
@@ -121,6 +159,7 @@ app.use('/domains', function( req, res){
     } 
     var termId = parseInt(path[1]);
     if (termId) {
+        trackEvent('page', 'domains', termId);
         return fetchDomainsFromDB(termId, res);
     } else {
         return printError(res, "Invalid id: " +  path[1]);
@@ -162,6 +201,7 @@ app.use('/ancestry', function( req, res){
 
     var termId = parseInt(path[1]);
     if (termId) {
+        trackEvent('page', 'ancestry', termId);
         return fetchAncestryFromDB(termId, res);
     } else {
         return printError(res, "Invalid id: " +  path[1]);
@@ -169,6 +209,7 @@ app.use('/ancestry', function( req, res){
 });
 
 function printError( res, msg) {
+    trackEvent('error', msg);
     res.writeHead(200, {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -195,6 +236,7 @@ function printTerm( res, tdata) {
 
 app.use('/search', function( req, res){
     var query = url.parse(req.url, true).path.substr(2);
+    trackEvent('search', query);
     // Looking for ?q=TEXT_TO_SEARCH
     var qObj = query.split(';').reduce( function(p,n){ var kv = n.split('='); p[kv[0]] = kv[1]; return p; }, {} );
     return fetchSearchFromDB(qObj.q, res);
@@ -204,8 +246,8 @@ app.use('/search', function( req, res){
 
 function fetchStatsFromDB(res) {
     let tdata = {
-        'release-date': '2019-07-31',
-        'counts' : []
+        'counts' : [],
+        'stats' : {}
     };
 
     const sql = "SELECT COUNT(*) AS folds, (select count(*) from fold where cf_status = 'active' and cf_attribute = 'iupr') as IUPR, ( select count(*) from hyperfamily where hf_status = 'active') AS hyperfamilies, (select count(*) from superfamily where sf_status = 'active') as superfamilies, (select count(*) from family where fa_status = 'active' and fa_name not like '%AUTOFAM%') as families, (select count(*) from inter_relationships) as `inter-relationships` from fold where cf_status = 'active' and cf_attribute = 'fold'";
@@ -223,7 +265,16 @@ function fetchStatsFromDB(res) {
                 tdata.counts.push([f, result[0][f]]);
             });
         }
-        return printTerm(res, tdata);
+        const sql2 = "SELECT substr(meta_key, 7) as meta_key, meta_value FROM meta WHERE meta_key LIKE 'stats.%'";
+        dbpool.query(sql2, function(err, result) {
+            if (err) {
+                return printError(res, err);
+            }         
+            if (result.length) {
+                result.map( (f) => { tdata.stats[f['meta_key']] = f['meta_value']; } );
+            }   
+            return printTerm(res, tdata);
+        });
     }); 
 }
 
