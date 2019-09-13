@@ -881,9 +881,10 @@ function fetchDomainsByUniProtFromDB(uniprot_id, res) {
 }
 
 function fetchSearchFromDB(qTerm, res) {
+    
     const sql = "SELECT * FROM rest_search WHERE id = '" + qTerm + "' OR name LIKE '%" + qTerm + "%' OR description LIKE '%" + qTerm + "%'";
     const sql2 = "SELECT id, concat_ws(' ', pdb_id, name) as name, 'domain' as type FROM rest_search_id WHERE id = '" + qTerm + "' OR pdb_id = '" + qTerm + "' OR uniprot_id = '" + qTerm + "'";
-    
+    const sql3 = 'SELECT repre_dom_id AS id, repre_pdb_code AS pdb_code, "represented" as type  FROM cluster_members WHERE member_pdb_code = "' + qTerm + '"';
     if (debug) {
         console.log("SQL (search text)# " + sql);
     }
@@ -902,7 +903,7 @@ function fetchSearchFromDB(qTerm, res) {
         }
 
         if (debug) {
-            console.log("SQL (search id)# " + sql);
+            console.log("SQL (search id)# " + sql2);
         }
         dbpool.query(sql2, function (err, result) {
             if (err) {
@@ -915,7 +916,22 @@ function fetchSearchFromDB(qTerm, res) {
                     tdata.results = result;
                 }
             }
-            return printTerm(res, tdata);
+            if (debug) {
+                console.log("SQL (search represented id)# " + sql3);
+            }
+            dbpool.query(sql3, function (err, result) {
+                if (err) {
+                    return printError(res, err);
+                }
+                if (result.length) {
+                    if (tdata.results) {
+                        tdata.results = [...tdata.results, ...result];
+                    } else {
+                        tdata.results = result;
+                    }
+                }
+                return printTerm(res, tdata);
+            });
         });
     });
 }
