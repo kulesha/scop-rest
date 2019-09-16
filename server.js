@@ -208,6 +208,19 @@ app.use('/ancestry', function( req, res){
     }
 });
 
+app.use('/representative_structure', function( req, res){
+    var path = req.path.split(/[\/\?]/);
+    if (path.length< 2 || !path[1]) {
+        return printError(res, "Invalid path: " + req.path)
+    } 
+    var termId = parseInt(path[1]);
+    if (termId) {
+        return fetchRepresentativeStructureFromDB(termId, res);
+    } else {
+        return printError(res, "Invalid id: " +  path[1]);
+    }
+});
+
 function printError( res, msg) {
     trackEvent('error', msg);
     res.writeHead(200, {
@@ -884,7 +897,7 @@ function fetchSearchFromDB(qTerm, res) {
     
     const sql = "SELECT * FROM rest_search WHERE id = '" + qTerm + "' OR name LIKE '%" + qTerm + "%' OR description LIKE '%" + qTerm + "%'";
     const sql2 = "SELECT id, concat_ws(' ', pdb_id, name) as name, 'domain' as type FROM rest_search_id WHERE id = '" + qTerm + "' OR pdb_id = '" + qTerm + "' OR uniprot_id = '" + qTerm + "'";
-    const sql3 = 'SELECT repre_dom_id AS id, repre_pdb_code AS pdb_code, "represented" as type  FROM cluster_members WHERE member_pdb_code = "' + qTerm + '"';
+    const sql3 = 'SELECT repre_dom_id AS id, repre_pdb_code AS pdb_code, repre_pdb_chain as pdb_chain, member_pdb_chain as member_chain, "represented" as type  FROM cluster_members WHERE member_pdb_code = "' + qTerm + '"';
     if (debug) {
         console.log("SQL (search text)# " + sql);
     }
@@ -934,4 +947,35 @@ function fetchSearchFromDB(qTerm, res) {
             });
         });
     });
+}
+
+
+function fetchRepresentativeStructureFromDB(termId, res) {
+    const termRank  = Math.floor(termId / 1000000);
+
+    let tdata = {
+        id: termId,
+        structure: []
+    };
+
+    if (termRank == 8) { // Only domains have a PDB ID attached to them directly
+        const sql = "select pdb_code, pdb_chain, pdb_begin, pdb_end from domain_segment where dom_id = "+ termId + " and se_mark = 'ready'"
+        if (debug) {
+            console.log("SQL ( rep struct )# ", sql);
+        }
+        dbpool.query(sql, function(err, result) {
+            if (err) {
+                return printError(res, err);
+            }
+            if (result.length) {
+        //        console.log(result);
+                tdata.structure = result;
+            }
+            //console.log(tdata);
+            return printTerm(res, tdata);
+        });         
+    
+    }
+
+    //return printTerm(res, tdata);
 }
