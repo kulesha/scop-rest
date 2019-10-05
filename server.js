@@ -979,20 +979,17 @@ function fetchFAAncestryFromDB(termId, res) {
                         return printError(res, err);
                     }         
                     if (result.length) {
-                        const current_node_id = result[0].id;
-                        nodes[current_node_id] = {
-                            id: current_node_id,
-                            name: result[0].name,
-                            type: 'superfamily'
-                        };
-                        nodes[result[0].pid] = {
-                            id: result[0].pid,
-                            name: result[0].pname,
-                            type: 'fold'
-                        };
-                    
-                        edges.push([current_node_id, result[0].pid, 'is']);
-                        grandparents.push(result[0].pid)
+                        result.map( (i) => {
+                            if (i.pid) {
+                                nodes[i.pid] = {
+                                    id : i.pid,
+                                    name: i.pname,
+                                    type: 'fold'
+                                };
+                                edges.push([i.id, i.pid, "is"]);
+                                grandparents.push(i.pid)
+                            }
+                        });
                     }
             
                     // now look for grandparents via descent table
