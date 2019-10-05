@@ -729,6 +729,54 @@ function fetchChildrenFromDB(termId, res) {
     });
 }
 
+
+function fetchCFAncestryFromDB(termId, res) {
+    let nodes = {};
+    let edges = [];
+    
+    let tdata = {
+        id: termId,
+        lineage: {
+            nodes: [],
+            edges: []
+        }
+    };
+
+    // Get the direct parent from the fold table
+    const sql  = "SELECT cf_id as id, cf_name as name, cl.cl_id as pid, cl.cl_name as pname from fold cf left join class cl using (cl_id) where cf_id =  "+ termId;
+   
+    if (debug) {
+        console.log("SQL (ancestry-1)# ", sql);
+    }
+
+    dbpool.query(sql, function (err, result) {
+        if (err) {
+            return printError(res, err);
+        }         
+        if (result.length) {
+            const current_node_id = result[0].id;
+            nodes[current_node_id] = {
+                id: current_node_id,
+                name: result[0].name,
+                type: 'superfamily'
+            };
+            nodes[result[0].pid] = {
+                id: result[0].pid,
+                name: result[0].pname,
+                type: 'fold'
+            };
+        
+            edges.push([current_node_id, result[0].pid, 'is']);
+        }
+
+        tdata.lineage = {
+            nodes: nodes,
+            edges: edges
+        }
+        return printTerm(res, tdata);
+    });
+}
+
 function fetchSFAncestryFromDB(termId, res) {
     let nodes = {};
     let edges = [];
@@ -1288,19 +1336,21 @@ function fetchAncestryFromDB(termId, res) {
 
     const termRank  = Math.floor(termId / 1000000);
 
-    if (termRank == 3) {
-        return fetchSFAncestryFromDB(termId, res);
-    }
 
-    if (termRank == 4) {
-        return fetchFAAncestryFromDB(termId, res);
-    }
 
     if (termRank == 8) {
         return fetchDMAncestryFromDB(termId, res);
     }
+    if (termRank == 4) {
+        return fetchFAAncestryFromDB(termId, res);
+    }
+    if (termRank == 3) {
+        return fetchSFAncestryFromDB(termId, res);
+    }  
+    if (termRank == 2) {
+        return fetchCFAncestryFromDB(termId, res);
+    }
     return printTerm(res, tdata);
-
 }
 
 function fetchRepresentedStructuresFromDB(termId, res) {
