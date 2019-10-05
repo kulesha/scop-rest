@@ -252,7 +252,8 @@ app.use('/search', function( req, res){
     trackEvent('search', query);
     // Looking for ?q=TEXT_TO_SEARCH
     var qObj = query.split(';').reduce( function(p,n){ var kv = n.split('='); p[kv[0]] = kv[1]; return p; }, {} );
-    return fetchSearchFromDB(qObj.q, res);
+    console.log(qObj);
+    return fetchSearchFromDB(qObj, res);
 });
 
 /*** Data retrieval ***/
@@ -1424,7 +1425,144 @@ function fetchDomainsByUniProtFromDB(uniprot_id, res) {
     });
 }
 
-function fetchSearchFromDB(qTerm, res) {
+function fetchSearchFromDB(qObj, res) {  
+    const qTerm = decodeURI(qObj.q);
+    const qType = qObj.t;
+    let tdata = {
+        query: qTerm,
+        results: []
+    }
+
+    if (qType === 'keywords') {
+        const sql = "SELECT rs.* from structural_tags left join tags2nodes t2n using (tag_id) left join rest_search rs on node_id = rs.id where tag_name = '"+ qTerm +"' and rs.id is not NULL";
+        if (debug) {
+            console.log("SQL (search keywords 1)# " + sql);
+        }
+        dbpool.query(sql, function (err, result) {
+            if (err) {
+                return printError(res, err);
+            }
+            
+            if (result.length) {
+                tdata.results = result;
+            }
+            const sql2 ="select k2n.node_id, rs.* from keywords left join kwd2nodes k2n using (kwd_id) left join rest_search rs on k2n.node_id = rs.id where kwd_txt  =  '"+ qTerm +"' and rs.id is not NULL";
+            if (debug) {
+                console.log("SQL (search keywords 2)# " + sql2);
+            }
+            dbpool.query(sql2, function (err, result) {
+                if (err) {
+                    return printError(res, err);
+                }
+                if (result.length) {
+                    if (tdata.results) {
+                        tdata.results = [...tdata.results, ...result];
+                    } else {
+                        tdata.results = result;
+                    }
+                }  
+                const sql3 = "select rs.id,concat_ws(' ', pdb_id, name) as name, 'domain' as type from keywords left join kwd2nodes k2n using (kwd_id) left join rest_search_id rs on k2n.node_id = rs.id where kwd_txt  = '" + qTerm + "' and id is not null;";
+                if (debug) {
+                    console.log("SQL (search keywords 3)# " + sql3);
+                }
+                dbpool.query(sql3, function (err, result) {
+                    if (err) {
+                        return printError(res, err);
+                    }
+                    if (result.length) {
+                        if (tdata.results) {
+                            tdata.results = [...tdata.results, ...result];
+                        } else {
+                            tdata.results = result;
+                        }
+                    }  
+                    const sql4 = "select rs.id,concat_ws(' ', pdb_id, name) as name, 'domain' as type from structural_tags left join tags2nodes t2n using (tag_id) left join rest_search_id rs on t2n.node_id = rs.id where tag_name = '"+ qTerm +"' and rs.id is not NULL";
+                    if (debug) {
+                        console.log("SQL (search keywords 4)# " + sql4);
+                    }
+                   dbpool.query(sql4, function (err, result) {
+                        if (err) {
+                            return printError(res, err);
+                        }
+                        if (result.length) {
+                            if (tdata.results) {
+                                tdata.results = [...tdata.results, ...result];
+                            } else {
+                                tdata.results = result;
+                            }
+                        }  
+                        tdata.count = tdata.results.length;
+
+                        return printTerm(res, tdata);
+                    });
+                });
+            });
+        }); 
+        return;   
+    }
+
+    if (qType === 'relations') {
+        [rType, rName] = qTerm.split(': ');
+        tdata.query = rName;
+
+        if (rType === 'hyperfamily') {
+            // no need to search domains
+            const sql = "select ds.*,rs.* from hyperfamily hf left join descent ds on hf.hf_id = ds.node1_id left join rest_search rs on ds.node2_id = rs.id where hf_name = '"+ rName +"' and id is not null";
+         
+            if (debug) {
+                console.log("SQL (search relations/hyperfamily)# " + sql);
+            }
+            dbpool.query(sql, function (err, result) {
+                if (err) {
+                    return printError(res, err);
+                }
+                if (result.length) {
+                    tdata.results = result;
+                }
+                tdata.count = tdata.results.length;
+                return printTerm(res, tdata);
+            });
+
+          } else {
+            // inter_relationships can not include domains so we only use rest-search
+            const sql = "select i2n.*, rs.* from inter_relationships left join ir_nodes_relations i2n using (ir_id) left join rest_search rs on i2n.node_id = rs.id where ir_name = '"+ rName +"' and id is not null";
+            if (debug) {
+                console.log("SQL (search relations 1)# " + sql);
+            }
+            dbpool.query(sql, function (err, result) {
+                if (err) {
+                    return printError(res, err);
+                }   
+                if (result.length) {
+                    tdata.results = result;
+                }
+                tdata.count = tdata.results.length;
+                return printTerm(res, tdata);
+            });
+        }
+        return;
+    }
+
+    if ( qType === 'events' ) {
+        const sql = "select rs.* from hypothetical_evolutionary_event left join hypo_event2nodes_relations e2n using (event_id) left join rest_search rs on e2n.node_id = rs.id  where event_name = '"+ qTerm+"' and id is not null;";
+        if (debug) {
+            console.log("SQL (search events)# " + sql);
+        }
+        dbpool.query(sql, function (err, result) {
+            if (err) {
+                return printError(res, err);
+            }   
+            if (result.length) {
+                tdata.results = result;
+            }
+            tdata.count = tdata.results.length;
+
+            return printTerm(res, tdata);
+        });
+        return;
+    }
+
+    
     
     const sql = "SELECT * FROM rest_search WHERE id = '" + qTerm + "' OR name LIKE '%" + qTerm + "%' OR description LIKE '%" + qTerm + "%'";
     const sql2 = "SELECT id, concat_ws(' ', pdb_id, name) as name, 'domain' as type FROM rest_search_id WHERE id = '" + qTerm + "' OR pdb_id = '" + qTerm + "' OR uniprot_id = '" + qTerm + "'";
@@ -1432,11 +1570,7 @@ function fetchSearchFromDB(qTerm, res) {
     if (debug) {
         console.log("SQL (search text)# " + sql);
     }
-    tdata = {
-        query: qTerm,
-        results: []
-    }
-
+  
     dbpool.query(sql, function (err, result) {
         if (err) {
             return printError(res, err);
