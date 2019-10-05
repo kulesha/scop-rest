@@ -26,7 +26,7 @@ let debug = 1;
 if ('debug' in config) {
     debug = config.debug;
 }
-
+debug = 1;
 let WEB_PORT = 80;
 if ('webport' in config) {
     WEB_PORT = config.webport;
@@ -654,7 +654,8 @@ function fetchDomainsFromDB(termId, res) {
         return printTerm(res, tdata);
     }
     
-    const sql = "SELECT num, id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, protein_name, uniprot_id, species_name, seq_begin, seq_end FROM rest_domains WHERE node_id = " + termId + " ORDER BY num DESC, id, serial ";
+    //const sql = "SELECT num, id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, protein_name, uniprot_id, species_name, seq_begin, seq_end FROM rest_domains WHERE node_id = " + termId + " ORDER BY num DESC, id, serial ";
+    const sql = "SELECT represented_structures as num, id, serial, domain_type, pdb_id, pdb_chain, pdb_begin, pdb_end, protein_name, uniprot_id, species_name, seq_begin, seq_end FROM rest_domain_segments WHERE node_id = " + termId + " ORDER BY num DESC, id, serial ";
     if (debug) {
         console.log("SQL ( domains )# ", sql);
     }
@@ -728,11 +729,11 @@ function fetchChildrenFromDB(termId, res) {
     });
 }
 
-function fetchAncestryFromDB(termId, res) {
+function fetchSFAncestryFromDB(termId, res) {
     let nodes = {};
     let edges = [];
     let parents = [];
-
+    
     let tdata = {
         id: termId,
         lineage: {
@@ -741,9 +742,9 @@ function fetchAncestryFromDB(termId, res) {
         }
     };
 
-    const sql  = "SELECT fa_id as id, fa_name as name, sf.sf_id as pid, sf.sf_name as pname, 'superfamily' as ptype from family fa left join superfamily sf using (sf_id) where fa_id =  "+ termId;
-    const sql2 = "select sf.sf_id, sf.sf_name, cf.cf_id, cf.cf_name from descent c left join superfamily sf on c.node1_id = sf.sf_id left join fold cf on c.node1_id = cf.cf_id where node2_id = " + termId;
-    
+    // First get the direct parent from the superfamily table
+    const sql  = "SELECT sf_id as id, sf_name as name, cf.cf_id as pid, cf.cf_name as pname from superfamily sf left join fold cf using (cf_id) where sf_id =  "+ termId;
+   
     if (debug) {
         console.log("SQL (ancestry-1)# ", sql);
     }
@@ -756,16 +757,21 @@ function fetchAncestryFromDB(termId, res) {
             const current_node_id = result[0].id;
             nodes[current_node_id] = {
                 id: current_node_id,
-                name: result[0].name
+                name: result[0].name,
+                type: 'superfamily'
             };
             nodes[result[0].pid] = {
                 id: result[0].pid,
-                name: result[0].pname
+                name: result[0].pname,
+                type: 'fold'
             };
-            
+        
             edges.push([current_node_id, result[0].pid, 'is']);
             parents.push(result[0].pid)
-            
+   
+            // Now get other possible parents ( only folds ) via descent table
+            const sql2 = "SELECT cf.cf_id, cf.cf_name from descent c left join fold cf on c.node1_id = cf.cf_id  where node2_id = " + termId;
+   
             if (debug) {
                 console.log("SQL (ancestry-2)# ", sql2);
             }
@@ -778,23 +784,18 @@ function fetchAncestryFromDB(termId, res) {
                         if (i.cf_id) {
                             nodes[i.cf_id] = {
                                 id : i.cf_id,
-                                name: i.cf_name
+                                name: i.cf_name,
+                                type: 'fold'
                             };
-                            edges.push([current_node_id, i.cf_id, "partof"]);
-                        }
-                        if (i.sf_id) {
-                            nodes[i.sf_id] = {
-                                id : i.sf_id,
-                                name: i.sf_name,
-                            }
-                            edges.push([current_node_id, i.sf_id, "is"]);
-                            parents.push(i.sf_id);
+                            edges.push([current_node_id, i.cf_id, "is"]);
+                            parents.push(i.cf_id)
                         }
                     });
                 }
+                //console.log("PARENTS", parents);
 
                 if (parents) {
-                    const sql3 = "SELECT sf_id as id, cf.cf_id as pid, cf.cf_name as pname from superfamily sf left join fold cf using (cf_id) where sf_id in (" + parents.join(',') + ")";
+                    const sql3 = "SELECT cf_id as id, cl.cl_id as pid, cl.cl_name as pname from fold cf left join class cl using (cl_id) where cf_id in (" + parents.join(',') + ")";
                     if (debug) {
                         console.log("SQL (ancestry-3)# ", sql3);
                     }
@@ -807,7 +808,8 @@ function fetchAncestryFromDB(termId, res) {
                             result.map( (i) => {
                                 nodes[i.pid] = {
                                     id : i.pid,
-                                    name: i.pname
+                                    name: i.pname,
+                                    type: 'class'
                                 };
                                 edges.push([i.id, i.pid, "is"]);
                             });
@@ -831,6 +833,474 @@ function fetchAncestryFromDB(termId, res) {
             return printTerm(res, tdata);
         }
     });
+}
+function fetchFAAncestryFromDB(termId, res) {
+    let nodes = {};
+    let edges = [];
+    let parents = [];
+    let grandparents = [];
+
+    let tdata = {
+        id: termId,
+        lineage: {
+            nodes: [],
+            edges: []
+        }
+    };
+
+    // First get the direct parent from the family table
+    const sql  = "SELECT fa_id as id, fa_name as name, sf.sf_id as pid, sf.sf_name as pname, 'superfamily' as ptype from family fa left join superfamily sf using (sf_id) where fa_id =  "+ termId;
+    
+    if (debug) {
+        console.log("SQL (ancestry-1)# ", sql);
+    }
+
+    dbpool.query(sql, function (err, result) {
+        if (err) {
+            return printError(res, err);
+        }         
+        if (result.length) {
+            const current_node_id = result[0].id;
+            nodes[current_node_id] = {
+                id: current_node_id,
+                name: result[0].name,
+                type: 'family'
+            };
+            nodes[result[0].pid] = {
+                id: result[0].pid,
+                name: result[0].pname,
+                type: 'superfamily'
+            };
+        
+            edges.push([current_node_id, result[0].pid, 'is']);
+            parents.push(result[0].pid)
+   
+            // Now get other possible parents ( superfamilies and / or folds ) via descent table
+            const sql2 = "SELECT sf.sf_id, sf.sf_name, cf.cf_id, cf.cf_name from descent c left join superfamily sf on c.node1_id = sf.sf_id left join fold cf on c.node1_id = cf.cf_id where node2_id = " + termId;
+    
+            if (debug) {
+                console.log("SQL (ancestry-2)# ", sql2);
+            }
+            dbpool.query(sql2, function (err, result) {
+                if (err) {
+                    return printError(res, err);
+                }         
+                if (result.length) {
+                    result.map( (i) => {
+                        if (i.cf_id) {
+                            nodes[i.cf_id] = {
+                                id : i.cf_id,
+                                name: i.cf_name,
+                                type: 'fold'
+                            };
+                            edges.push([current_node_id, i.cf_id, "partof"]);
+                            grandparents.push(i.cf_id);
+                        }
+                        if (i.sf_id) {
+                            nodes[i.sf_id] = {
+                                id : i.sf_id,
+                                name: i.sf_name,
+                                type: 'superfamily'
+                            }
+                            edges.push([current_node_id, i.sf_id, "is"]);
+                            parents.push(i.sf_id);
+                        }
+                    });
+                }
+
+                //console.log("PARENTS", parents);
+                // now find grandparents - first via direct link
+                const sql3  = "SELECT sf_id as id, sf_name as name, cf.cf_id as pid, cf.cf_name as pname from superfamily sf left join fold cf using (cf_id) where sf_id in (" + parents.join(',') + ")";
+                if (debug) {
+                    console.log("SQL (ancestry-3)# ", sql3);
+                }
+                dbpool.query(sql3, function (err, result) {
+                    if (err) {
+                        return printError(res, err);
+                    }         
+                    if (result.length) {
+                        const current_node_id = result[0].id;
+                        nodes[current_node_id] = {
+                            id: current_node_id,
+                            name: result[0].name,
+                            type: 'superfamily'
+                        };
+                        nodes[result[0].pid] = {
+                            id: result[0].pid,
+                            name: result[0].pname,
+                            type: 'fold'
+                        };
+                    
+                        edges.push([current_node_id, result[0].pid, 'is']);
+                        grandparents.push(result[0].pid)
+                    }
+            
+                    // now look for grandparents via descent table
+                    const sql4 = "SELECT node2_id as id, cf.cf_id, cf.cf_name from descent c left join fold cf on c.node1_id = cf.cf_id where node2_id in (" + parents.join(',') + ")";
+                    if (debug) {
+                        console.log("SQL (ancestry-4)# ", sql4);
+                    }
+                    dbpool.query(sql4, function (err, result) {
+                        if (err) {
+                            return printError(res, err);
+                        }         
+                        if (result.length) {
+                            const current_node_id = result[0].id;
+                            result.map( (i) => {
+                                if (i.cf_id) {
+                                    nodes[i.cf_id] = {
+                                        id : i.cf_id,
+                                        name: i.cf_name,
+                                        type: 'fold'
+                                    };
+                                    edges.push([current_node_id, i.cf_id, "is"]);
+                                    grandparents.push(i.cf_id)
+                                }
+                            });
+                        }
+                        
+                        //console.log('GRANDS:', grandparents);
+
+                        if (grandparents) {
+                            const sql5 = "SELECT cf_id as id, cl.cl_id as pid, cl.cl_name as pname from fold cf left join class cl using (cl_id) where cf_id in (" + grandparents.join(',') + ")";
+                            if (debug) {
+                                console.log("SQL (ancestry-5)# ", sql5);
+                            }
+                            dbpool.query(sql5, function (err, result) {
+                                if (err) {
+                                    return printError(res, err);
+                                }         
+                        
+                                if (result.length) {
+                                    result.map( (i) => {
+                                        nodes[i.pid] = {
+                                            id : i.pid,
+                                            name: i.pname,
+                                            type: 'class'
+                                        };
+                                        edges.push([i.id, i.pid, "is"]);
+                                    });
+                                } 
+                                tdata.lineage = {
+                                    nodes: nodes,
+                                    edges: edges
+                                }
+                                return printTerm(res, tdata);
+                            });
+                        }
+                    });
+                });
+            });
+        } else {
+            return printTerm(res, tdata);
+        
+        }
+    });
+}
+
+function fetchDMAncestryFromDB(termId, res) {
+    let nodes = {};
+    let edges = [];
+    let parents = [];
+    let grandparents = [];
+    
+    let tdata = {
+        id: termId,
+        lineage: {
+            nodes: [],
+            edges: []
+        }
+    };
+
+    // First find the parent - there can only be one : family or superfamily
+    const sql  = "SELECT dom_id as id, dom_name as name, node_id as pid, fa.fa_name as fa_name, sf.sf_name as sf_name, if (domain_type = 'SF', 'superfamily', 'family') as ptype from domain_scop_cla dom left join superfamily sf on (dom.node_id = sf.sf_id) left join family fa on (dom.node_id = fa.fa_id) where dom_id =  "+ termId;
+    if (debug) {
+        console.log("SQL (ancestry-1)# ", sql);
+    }
+
+    dbpool.query(sql, function (err, result) {
+        if (err) {
+            return printError(res, err);
+        }         
+        if (result.length) {
+            const current_node_id = result[0].id;
+            nodes[current_node_id] = {
+                id: current_node_id,
+                name: result[0].name,
+                type: 'domain'
+            };
+            edges.push([current_node_id, result[0].pid, 'is']);
+           
+            if (result[0].ptype === 'family') {
+                nodes[result[0].pid] = {
+                    id: result[0].pid,
+                    name: result[0].fa_name,
+                    type: 'family'
+                };
+
+                // parent is a family - lets find its parents - can be a superfamily or a fold and it can be connected directly or via decent table
+                const sql2  = "SELECT fa_id as id, fa_name as name, sf.sf_id as pid, sf.sf_name as pname from family fa left join superfamily sf using (sf_id) where fa_id =  "+ result[0].pid;
+                const sql3  = "SELECT sf.sf_id, sf.sf_name, cf.cf_id, cf.cf_name from descent c left join superfamily sf on c.node1_id = sf.sf_id left join fold cf on c.node1_id = cf.cf_id where node2_id = " + result[0].pid;
+                const node2 = result[0].pid;
+
+                if (debug) {
+                    console.log("SQL (ancestry-2a)# ", sql2);
+                }
+
+                dbpool.query(sql2, function (err, result) {
+                    if (err) {
+                        return printError(res, err);
+                    }      
+                    if (result.length) {
+                        const current_node_id = result[0].id;
+                        nodes[current_node_id] = {
+                            id: current_node_id,
+                            name: result[0].name,
+                            type: 'family'
+                        };
+                        nodes[result[0].pid] = {
+                            id: result[0].pid,
+                            name: result[0].pname,
+                            type: 'superfamily'
+                        };
+                        edges.push([current_node_id, result[0].pid, 'is']);
+                        parents.push(result[0].pid);
+                    }
+
+                    if (debug) {
+                        console.log("SQL (ancestry-3a)# ", sql3);
+                    }
+
+                    dbpool.query(sql3, function (err, result) {
+                        if (err) {
+                            return printError(res, err);
+                        }         
+                        if (result.length) {
+                            result.map( (i) => {
+                                if (i.cf_id) {
+                                    nodes[i.cf_id] = {
+                                        id : i.cf_id,
+                                        name: i.cf_name,
+                                        type: 'fold'
+                                    };
+                                    edges.push([node2, i.cf_id, "partof"]);
+                                    grandparents.push(i.cf_id);
+                                }
+                                if (i.sf_id) {
+                                    nodes[i.sf_id] = {
+                                        id : i.sf_id,
+                                        name: i.sf_name,
+                                        type: 'superfamily'
+                                    }
+                                    edges.push([node2, i.sf_id, "is"]);
+                                    parents.push(i.sf_id);
+                                }
+                            });
+                        }
+                       
+                        // now let's find the grandparents - folds 
+                        if (parents) {
+                            // first directly via superfamily 
+                            const sql4 = "SELECT sf_id as id, cf.cf_id as pid, cf.cf_name as pname from superfamily sf left join fold cf using (cf_id) where sf_id in (" + parents.join(',') + ")";
+                            if (debug) {
+                                console.log("SQL (ancestry-4)# ", sql4);
+                            }
+                            dbpool.query(sql4, function (err, result) {
+                                if (err) {
+                                    return printError(res, err);
+                                }
+
+                                if (result.length) {
+                                    result.map( (i) => {
+                                        if (i.pid) {
+                                        nodes[i.pid] = {
+                                            id : i.pid,
+                                            name: i.pname,
+                                            type: 'fold'
+                                        };
+                                        edges.push([i.id, i.pid, "is"]);
+                                
+                                        grandparents.push(i.pid);
+                                    }
+                                    });
+                                }
+                                
+                                const sql5  = "SELECT node2_id as id, cf.cf_id as pid, cf.cf_name as pname from descent c left join fold cf on c.node1_id = cf.cf_id where node2_id in (" + parents.join(',') + ")";
+                                if (debug) {
+                                    console.log("SQL (ancestry-5)# ", sql5);
+                                }
+                               
+                                dbpool.query(sql5, function (err, result) {
+                                    if (err) {
+                                        return printError(res, err);
+                                    }
+    
+                                    if (result.length) {
+                                        result.map( (i) => {
+                                            if (i.pid) {
+                                            nodes[i.pid] = {
+                                                id : i.pid,
+                                                name: i.pname,
+                                                type: 'fold'
+                                            };
+                                            edges.push([i.id, i.pid, "is"]);
+                                            grandparents.push(i.pid);}
+                                        });
+                                    }
+                              
+
+                                    // and finally get the classes
+                                    if (grandparents) {
+                                        const sql5 = "SELECT cf_id as id, cl.cl_id as pid, cl.cl_name as pname from fold cf left join class cl using (cl_id) where cf_id in (" + grandparents.join(',') + ")";
+                                        if (debug) {
+                                            console.log("SQL (ancestry-5)# ", sql5);
+                                        }
+                                        dbpool.query(sql5, function (err, result) {
+                                            if (err) {
+                                                return printError(res, err);
+                                            }
+            
+                                            if (result.length) {
+                                                result.map( (i) => {
+                                                    nodes[i.pid] = {
+                                                        id : i.pid,
+                                                        name: i.pname,
+                                                        type: 'class'
+                                                    };
+                                                    edges.push([i.id, i.pid, "is"]);
+                                                });
+                                            }
+                                            tdata.lineage = {
+                                                nodes: nodes,
+                                                edges: edges
+                                            }
+                                            return printTerm(res, tdata);            
+                                        });
+                                    }
+                                });
+                            });
+                        }
+                    });
+                });       
+            } else {
+                nodes[result[0].pid] = {
+                    id: result[0].pid,
+                    name: result[0].sf_name,
+                    type: 'superfamily'
+                };
+                // parent is a superfamily - lets find its parents - can only be fold and it can be connected directly or via decent table
+                const sql2  = "SELECT sf_id as id, sf_name as name, cf.cf_id as pid, cf.cf_name as pname, 'fold' as ptype from superfamily sf left join fold cf using (cf_id) where sf_id =  "+ result[0].pid;
+                const sql3  = "SELECT node2_id as id, cf.cf_id, cf.cf_name from descent c left join fold cf on c.node1_id = cf.cf_id where node2_id = " + result[0].pid;
+                if (debug) {
+                    console.log("SQL (ancestry-2b)# ", sql2);
+                }
+                dbpool.query(sql2, function (err, result) {
+                    if (err) {
+                        return printError(res, err);
+                    }         
+                    if (result.length) {
+                        const current_node_id = result[0].id;
+                        nodes[current_node_id] = {
+                            id: current_node_id,
+                            name: result[0].name,
+                            type: 'superfamily'
+                        };
+                        nodes[result[0].pid] = {
+                            id: result[0].pid,
+                            name: result[0].pname,
+                            type: 'fold'
+                        };
+                        edges.push([current_node_id, result[0].pid, 'is']);
+                        grandparents.push(result[0].pid);
+                    }
+                    if (debug) {
+                        console.log("SQL (ancestry-3b)# ", sql3);
+                    }
+                    dbpool.query(sql3, function (err, result) {
+                        if (err) {
+                            return printError(res, err);
+                        }         
+                        if (result.length) {
+                            result.map( (i) => {
+                                if (i.cf_id) {
+                                    nodes[i.cf_id] = {
+                                        id : i.cf_id,
+                                        name: i.cf_name,
+                                        type: 'fold'
+                                    };
+                                    edges.push([i.id, i.cf_id, "is"]);
+                                    grandparents.push(i.cf_id);
+                                }
+                            });
+                        }
+                        // and finally get the classes
+                        if (grandparents) {
+                            const sql5 = "SELECT cf_id as id, cl.cl_id as pid, cl.cl_name as pname from fold cf left join class cl using (cl_id) where cf_id in (" + grandparents.join(',') + ")";
+                            if (debug) {
+                                console.log("SQL (ancestry-5b)# ", sql5);
+                            }
+                            dbpool.query(sql5, function (err, result) {
+                                if (err) {
+                                    return printError(res, err);
+                                }
+
+                                if (result.length) {
+                                    result.map( (i) => {
+                                        nodes[i.pid] = {
+                                            id : i.pid,
+                                            name: i.pname,
+                                            type: 'class'
+                                        };
+                                        edges.push([i.id, i.pid, "is"]);
+                                    });
+                                }
+                
+                                tdata.lineage = {
+                                    nodes: nodes,
+                                    edges: edges
+                                }
+                                return printTerm(res, tdata);
+                            });
+                        }
+                    });
+                });
+            }
+            return;
+        } else {
+            return printTerm(res, tdata);
+        }
+    });
+}
+
+
+function fetchAncestryFromDB(termId, res) {
+    let nodes = {};
+    let edges = [];
+    let parents = [];
+    
+    let tdata = {
+        id: termId,
+        lineage: {
+            nodes: [],
+            edges: []
+        }
+    };
+
+    const termRank  = Math.floor(termId / 1000000);
+
+    if (termRank == 3) {
+        return fetchSFAncestryFromDB(termId, res);
+    }
+
+    if (termRank == 4) {
+        return fetchFAAncestryFromDB(termId, res);
+    }
+
+    if (termRank == 8) {
+        return fetchDMAncestryFromDB(termId, res);
+    }
+    return printTerm(res, tdata);
+
 }
 
 function fetchRepresentedStructuresFromDB(termId, res) {

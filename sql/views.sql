@@ -8,6 +8,8 @@ CREATE VIEW rest_segments as select dsc.node_id as node_id, dsc.dom_id as id, se
 
 CREATE VIEW rest_domains as select sum(if(cm.repre_dom_id, 1, 0)) as num, rs.* from rest_segments rs left join cluster_members cm on rs.id = cm.repre_dom_id group by id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, protein_name, uniprot_id, species_name;
 
+select sum(if(cm.repre_dom_id, 1, 0)) as num, rs.* from rest_segments rs left join cluster_members cm on rs.id = cm.repre_dom_id group by id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, protein_name, uniprot_id, species_name;
+
 CREATE index domid_index on cluster_members(repre_dom_id) ;
 
 update fold set last_modified = date_created where last_modified < '2001-01-01';
@@ -21,3 +23,6 @@ alter table family modify column last_modified date default NULL;
 create fulltext index search_fold on fold(cf_name, cf_comment);
 create fulltext index search_superfamily on superfamily(sf_name, sf_comment);
 create fulltext index search_family on family(fa_name, fa_comment);
+
+create table rest_domain_segments (id int(9) not null, node_id int(9) not null, domain_type enum('SF', 'FA') not null, serial int(2) default 1,  pdb_id varchar(4), pdb_chain varchar(4), pdb_begin varchar(10), pdb_end varchar(10), seq_begin varchar(10), seq_end varchar(10), protein_name text, uniprot_id text, species_name varchar(255), index(id), index(node_id), represented_structures int, index(id), index(node_id));
+insert into rest_domain_segments select rs.id, rs.node_id, rs.type, rs.serial,  rs.pdb_id, rs.pdb_chain, rs.pdb_begin, rs.pdb_end, rs.seq_begin, rs.seq_end, rs.protein_name, rs.uniprot_id, rs.species_name, sum(if(cm.repre_dom_id, 1, 0)) as represented_structure  from rest_segments rs left join cluster_members cm on rs.id = cm.repre_dom_id group by id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, protein_name, uniprot_id, species_name;
