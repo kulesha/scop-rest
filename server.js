@@ -26,7 +26,6 @@ let debug = 1;
 if ('debug' in config) {
     debug = config.debug;
 }
-debug = 1;
 let WEB_PORT = 80;
 if ('webport' in config) {
     WEB_PORT = config.webport;
@@ -166,6 +165,20 @@ app.use('/domains', function( req, res){
     }
 });
 
+app.use('/domains_fast', function( req, res){
+    var path = req.path.split(/[\/\?]/);
+    if (path.length< 2 || !path[1]) {
+        return printError(res, "Invalid path: " + req.path)
+    } 
+    var termId = parseInt(path[1]);
+    if (termId) {
+        trackEvent('page', 'domains', termId);
+        return fetchDomainsFromDB(termId, res, true);
+    } else {
+        return printError(res, "Invalid id: " +  path[1]);
+    }
+});
+
 app.use('/represented_structures', function( req, res){
     var path = req.path.split(/[\/\?]/);
 
@@ -288,7 +301,7 @@ function fetchStatsFromDB(res) {
             if (result.length) {
                 result.map( (f) => { tdata.stats[f['meta_key']] = f['meta_value']; } );
             }   
-            const sql3 = "SELECT substr(meta_key, 8) as meta_key, meta_value FROM meta WHERE meta_key LIKE 'source.%'";
+            const sql3 = "SELECT substr(meta_key, 9) as meta_key, meta_value FROM meta WHERE meta_key LIKE 'release.%'";
             dbpool.query(sql3, function(err, result) {
                 if (err) {
                     return printError(res, err);
@@ -653,7 +666,7 @@ function fetchTermFromDB(termId, res) {
     });
 }
 
-function fetchDomainsFromDB(termId, res) {
+function fetchDomainsFromDB(termId, res, fast=0) {
     const termRank  = Math.floor(termId / 1000000);
 
     let tdata = {
@@ -666,8 +679,11 @@ function fetchDomainsFromDB(termId, res) {
         return printTerm(res, tdata);
     }
     
-    //const sql = "SELECT num, id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, protein_name, uniprot_id, species_name, seq_begin, seq_end FROM rest_domains WHERE node_id = " + termId + " ORDER BY num DESC, id, serial ";
-    const sql = "SELECT represented_structures as num, id, serial, domain_type, pdb_id, pdb_chain, pdb_begin, pdb_end, protein_name, uniprot_id, species_name, seq_begin, seq_end FROM rest_domain_segments WHERE node_id = " + termId + " ORDER BY num DESC, id, serial ";
+    let sql = "SELECT num, id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, protein_name, uniprot_id, species_name, seq_begin, seq_end FROM rest_domains WHERE node_id = " + termId + " ORDER BY num DESC, id, serial ";
+    
+    if (fast){
+        sql = "SELECT represented_structures as num, id, serial, domain_type, pdb_id, pdb_chain, pdb_begin, pdb_end, protein_name, uniprot_id, species_name, seq_begin, seq_end FROM rest_domain_segments WHERE node_id = " + termId + " ORDER BY num DESC, id, serial ";
+    }
     if (debug) {
         console.log("SQL ( domains )# ", sql);
     }
