@@ -4,10 +4,13 @@ CREATE VIEW `rest_families` AS select `family`.`sf_id` AS `parent_id`,`family`.`
 CREATE VIEW `rest_search` AS select `rest_folds`.`id` AS `id`,`rest_folds`.`name` AS `name`,`rest_folds`.`description` AS `description`,'fold' AS `type` from `rest_folds` union select `rest_superfamilies`.`id` AS `id`,`rest_superfamilies`.`name` AS `name`,`rest_superfamilies`.`description` AS `description`,'superfamily' AS `type` from `rest_superfamilies` union select `rest_families`.`id` AS `id`,`rest_families`.`name` AS `name`,`rest_families`.`description` AS `description`,'family' AS `type` from `rest_families`;
 CREATE VIEW `rest_search_id` AS select `domain_scop_cla`.`dom_id` AS `id`,`domain_segment`.`pdb_code` AS `pdb_id`,`rs`.`ext_db_id` AS `uniprot_id`,group_concat(concat_ws(':',`domain_segment`.`pdb_chain`,concat_ws('-',`domain_segment`.`pdb_begin`,`domain_segment`.`pdb_end`)) separator ', ') AS `name` from (`domain_scop_cla` left join `domain_segment` using (dom_id) left join `representative_sequence` `rs` on((`domain_segment`.`repre_seq` = `rs`.`rep_seq_id`))) where dom_mark = 'ready' and domain_type in ('SF', 'FA') group by `id`,`pdb_id`,`uniprot_id`;
 
-create view rest_segments as select dsc.node_id as node_id, dsc.dom_id as id, serial, dsc.domain_type as type, ds.pdb_code as pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, rs.rep_name as protein_name, ext_db_id as uniprot_id, ncbi.scientific_name as species_name from domain_scop_cla dsc left join domain_segment ds using (dom_id) left join representative_sequence rs on ds.repre_seq = rs.rep_seq_id left join ncbi_taxonomy ncbi using (ncbi_taxa_id) where dom_mark = 'ready' and domain_type in ('SF', 'FA');
-create view rest_domains as select sum(if(cm.repre_dom_id, 1, 0)) as num, rs.* from rest_segments rs left join cluster_members cm on rs.id = cm.repre_dom_id group by id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, protein_name, uniprot_id, species_name;
+CREATE VIEW rest_segments as select dsc.node_id as node_id, dsc.dom_id as id, serial, dsc.domain_type as type, ds.pdb_code as pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, rs.rep_name as protein_name, if(ext_db_name = 'SPROT', ext_db_id, "") as uniprot_id, ncbi.scientific_name as species_name from domain_scop_cla dsc left join domain_segment ds using (dom_id) left join representative_sequence rs on ds.repre_seq = rs.rep_seq_id left join ncbi_taxonomy ncbi using (ncbi_taxa_id) where dom_mark = 'ready' and domain_type in ('SF', 'FA');
 
-create index domid_index on cluster_members(repre_dom_id) ;
+CREATE VIEW rest_domains as select sum(if(cm.repre_dom_id, 1, 0)) as num, rs.* from rest_segments rs left join cluster_members cm on rs.id = cm.repre_dom_id group by id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, protein_name, uniprot_id, species_name;
+
+select sum(if(cm.repre_dom_id, 1, 0)) as num, rs.* from rest_segments rs left join cluster_members cm on rs.id = cm.repre_dom_id group by id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, protein_name, uniprot_id, species_name;
+
+CREATE index domid_index on cluster_members(repre_dom_id) ;
 
 update fold set last_modified = date_created where last_modified < '2001-01-01';
 update superfamily set last_modified = date_created where last_modified < '2001-01-01';
@@ -20,3 +23,7 @@ alter table family modify column last_modified date default NULL;
 create fulltext index search_fold on fold(cf_name, cf_comment);
 create fulltext index search_superfamily on superfamily(sf_name, sf_comment);
 create fulltext index search_family on family(fa_name, fa_comment);
+
+create table rest_domain_segments (id int(9) not null, node_id int(9) not null, domain_type enum('SF', 'FA') not null, serial int(2) default 1,  pdb_id varchar(4), pdb_chain varchar(4), pdb_begin varchar(10), pdb_end varchar(10), seq_begin varchar(10), seq_end varchar(10), protein_name text, uniprot_id text, species_name varchar(255), index(id), index(node_id), represented_structures int, index(id), index(node_id));
+insert into rest_domain_segments select rs.id, rs.node_id, rs.type, rs.serial,  rs.pdb_id, rs.pdb_chain, rs.pdb_begin, rs.pdb_end, rs.seq_begin, rs.seq_end, rs.protein_name, rs.uniprot_id, rs.species_name, sum(if(cm.repre_dom_id, 1, 0)) as represented_structure  from rest_segments rs left join cluster_members cm on rs.id = cm.repre_dom_id group by id, serial, type, pdb_id, pdb_chain, pdb_begin, pdb_end, seq_begin, seq_end, protein_name, uniprot_id, species_name;
+insert into meta (meta_key, meta_value) values ('release.PDB', '2019-01-01'), ('release.UniProt', '2019-01-02'), ('release.SIFT', '2019-01-03')

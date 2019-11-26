@@ -1,0 +1,10 @@
+{
+  "connectionLimit" : 10,
+  "host": "localhost",
+  "user": "scop",
+  "password": "scop2",
+  "database": "scop2",
+  "webport": 80,
+  "debug": 0,
+  "gaTrackingID": "UA-147736950-1"
+}
