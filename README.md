@@ -17,7 +17,7 @@
 ## Running
 ### development server
 - $ cd scop-rest
-- $ node server --config ./config.json
+- $ node server --config=config.json
 
 ### production server
 #### build an executable

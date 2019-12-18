@@ -15,7 +15,7 @@ const args = getArgs();
 if (args.config) {
     config_file = args.config;
 }
-
+console.log("Reading configuration from: ", config_file);
 let rawdata = fs.readFileSync(config_file);
 let config = JSON.parse(rawdata);
 

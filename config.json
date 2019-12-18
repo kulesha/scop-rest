@@ -4,7 +4,6 @@
   "user": "scop",
   "password": "scop2",
   "database": "scop2",
-  "webport": 80,
-  "debug": 0,
-  "gaTrackingID": "UA-147377191-2"
+  "webport": 9080,
+  "debug": 0
 }

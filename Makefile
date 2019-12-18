@@ -5,6 +5,7 @@ PATCH    ?= 0
 CODENAME ?= $(shell lsb_release -cs)
 INSTALL   = apt-get install -y
 SEDI = sed -i
+VERSION = ${MAJOR}-${MINOR}-${SUB}
 ifeq ($(shell uname), Darwin)
         SEDI = sed -i ""
         INSTALL = echo
@@ -18,6 +19,9 @@ clean:
 
 package:
 	pkg . -t node12-linux-x64
+
+linux:
+	pkg . -t node12-linux-x64 -o scop-rest-linux-$(VERSION)
 
 deb:    package
 	touch tmp
