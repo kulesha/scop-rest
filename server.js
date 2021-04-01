@@ -232,7 +232,8 @@ function fetchStatsFromDB(res) {
     let tdata = {
         'counts' : [],
         'stats' : {},
-        'sources' : {}
+        'sources' : {},
+        'libraries' : {}
     };
 
     const sql = "SELECT COUNT(*) AS folds, (select count(*) from fold where cf_status = 'active' and cf_attribute = 'iupr') as IUPR, ( select count(*) from hyperfamily where hf_status = 'active') AS hyperfamilies, (select count(*) from superfamily where sf_status = 'active') as superfamilies, (select count(*) from family where fa_status = 'active' and fa_name not like '%AUTOFAM%') as families, (select count(*) from inter_relationships) as `inter-relationships` from fold where cf_status = 'active' and cf_attribute = 'fold'";
@@ -266,8 +267,17 @@ function fetchStatsFromDB(res) {
                 if (result.length) {
                     result.map( (f) => { tdata.sources[f['meta_key']] = f['meta_value']; } );
                 }   
-               
-                return printTerm(res, tdata);
+                const sql4 = "SELECT substr(meta_key, 9) as meta_key, meta_value FROM meta WHERE meta_key LIKE 'library.%'";
+                dbpool.query(sql4, function(err, result) {
+                    if (err) {
+                        return printError(res, err);
+                    }         
+                    if (result.length) {
+                        result.map( (f) => { tdata.libraries[f['meta_key']] = f['meta_value']; } );
+                    }   
+                   
+                    return printTerm(res, tdata);
+                });
             });
         });
     }); 
