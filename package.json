@@ -15,7 +15,7 @@
   "license": "ISC",
   "dependencies": {
     "eslint": "^6.0.1",
-    "express": "^4.17.1",
+    "express": "^4.18.2",
     "got": "^9.6.0",
     "mysql": "^2.17.1",
     "react-ga": "^2.6.0"
